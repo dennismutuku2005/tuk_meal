@@ -14,7 +14,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // TU Kenya colors
   static const Color primaryGreen = Color(0xFF0F7B0F);
-  static const Color darkGreen = Color(0xFF0A5A0A);
   static const Color lightGreen = Color(0xFF4CAF50);
   static const Color accentBlue = Color(0xFF1976D2);
   static const Color backgroundColor = Color(0xFFFAFAFA);
