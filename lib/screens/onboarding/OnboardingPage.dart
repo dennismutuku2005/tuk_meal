@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tuk_meal/screens/onboarding/GetStarted.dart';
+import 'package:tuk_meal/screens/onboarding/GetStartedPage.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -14,33 +14,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   // TU Kenya colors
   static const Color primaryGreen = Color(0xFF0F7B0F);
-  static const Color lightGreen = Color(0xFF4CAF50);
-  static const Color accentBlue = Color(0xFF1976D2);
   static const Color backgroundColor = Color(0xFFFAFAFA);
 
   final List<Map<String, dynamic>> onboardingData = [
     {
       "title": "Pre-order Your Meals",
-      "subtitle": "Students can easily pre-order food to avoid missing meals and long queues.",
-      "icon": Icons.restaurant_menu,
-      "color": primaryGreen,
+      "subtitle":
+          "Students can easily pre-order food to avoid missing meals and long queues.",
+      "image": "assets/images/preorder.png",
     },
     {
       "title": "Never Miss a Meal",
-      "subtitle": "Save time and enjoy your favorite meals without the rush during peak hours.",
-      "icon": Icons.schedule,
-      "color": accentBlue,
+      "subtitle":
+          "Save time and enjoy your favorite meals without the rush during peak hours.",
+      "image": "assets/images/missmeal.png",
     },
     {
       "title": "Better Food Planning",
-      "subtitle": "TUK Canteen prepares well-balanced, nutritious meals for the entire campus community.",
-      "icon": Icons.eco,
-      "color": lightGreen,
+      "subtitle":
+          "TUK Canteen prepares well-balanced, nutritious meals for the entire campus community.",
+      "image": "assets/images/planning.png",
     },
   ];
 
   void _nextPage() {
-    if (_currentPage < 3) {
+    if (_currentPage < onboardingData.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -58,127 +56,135 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _skip() {
-    _controller.jumpToPage(3); // Jump to login page
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const GetStartedPage()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isLoginPage = _currentPage == 3;
     final bool isLastOnboardingPage = _currentPage == onboardingData.length - 1;
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (!isLoginPage)
-              Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextButton(
-                    onPressed: _skip,
-                    style: TextButton.styleFrom(
-                      foregroundColor: primaryGreen,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    ),
-                    child: const Text(
-                      "Skip",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
+      body: Column(
+        children: [
+          Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextButton(
+                onPressed: _skip,
+                style: TextButton.styleFrom(
+                  foregroundColor: primaryGreen,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
                 ),
-              ),
-            Expanded(
-              child: PageView(
-                controller: _controller,
-                onPageChanged: (index) {
-                  setState(() => _currentPage = index);
-                },
-                children: [
-                  ...onboardingData.map((data) => _buildOnboardingPage(data)),
-                  _buildLoginPage(),
-                ],
+                child: const Text(
+                  "Skip",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
               ),
             ),
-            if (!isLoginPage) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  onboardingData.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: _currentPage == index ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _currentPage == index
-                          ? primaryGreen
-                          : primaryGreen.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(12),
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _controller,
+              physics: const BouncingScrollPhysics(),
+              itemCount: onboardingData.length, // Only the onboarding pages, not the login page
+              onPageChanged: (index) {
+                setState(() => _currentPage = index);
+              },
+              itemBuilder: (context, index) {
+                return _buildOnboardingPage(onboardingData[index]);
+              },
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              onboardingData.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: _currentPage == index ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _currentPage == index
+                      ? primaryGreen
+                      : primaryGreen.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Row(
+              children: [
+                if (_currentPage > 0)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _previousPage,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryGreen,
+                        side: BorderSide(color: primaryGreen),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text(
+                        "Back",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_currentPage > 0) const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (isLastOnboardingPage) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const GetStartedPage(),
+                          ),
+                        );
+                      } else {
+                        _nextPage();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      isLastOnboardingPage ? "Get Started" : "Next",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 40),
-            ],
-            if (!isLoginPage)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Row(
-                  children: [
-                    if (_currentPage > 0)
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _previousPage,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: primaryGreen,
-                            side: BorderSide(color: primaryGreen),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: const Text(
-                            "Back",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    if (_currentPage > 0) const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          if (isLastOnboardingPage) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => const GetStartedPage()),
-                            );
-                          } else {
-                            _nextPage();
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryGreen,
-                          foregroundColor: Colors.white,
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          isLastOnboardingPage ? "Get Started" : "Next",
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 30),
-          ],
-        ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+        ],
       ),
     );
   }
@@ -190,23 +196,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  data["color"].withOpacity(0.1),
-                  data["color"].withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              data["icon"],
-              size: 60,
-              color: data["color"],
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(20)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(data["image"], fit: BoxFit.cover),
             ),
           ),
           const SizedBox(height: 40),
@@ -228,103 +223,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
               fontSize: 16,
               color: Colors.grey[600],
               height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoginPage() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: primaryGreen,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.school,
-              size: 50,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            "Welcome to TUK Canteen",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF212121),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Join thousands of students who never miss a meal",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: 48),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const GetStartedPage()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryGreen,
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(27.5),
-                ),
-              ),
-              child: const Text(
-                "Login",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: OutlinedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const GetStartedPage()),
-                );
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: primaryGreen,
-                side: BorderSide(color: primaryGreen, width: 2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(27.5),
-                ),
-              ),
-              child: const Text(
-                "Sign Up",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
           ),
         ],

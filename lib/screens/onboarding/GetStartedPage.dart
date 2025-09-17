@@ -1,5 +1,6 @@
-// ignore: file_names
+
 import 'package:flutter/material.dart';
+import 'package:tuk_meal/screens/auth/LoginPage.dart';
 
 class GetStartedPage extends StatelessWidget {
   const GetStartedPage({super.key});
@@ -11,47 +12,36 @@ class GetStartedPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: Column(
+      body: Stack(
         children: [
-          // Top image with rounded bottom corners
-          Expanded(
-            flex: 1,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  image: const DecorationImage(
-                    image: AssetImage("assets/images/selfserve.png"),
-                    fit: BoxFit.cover,
-                  ),
-                  // Add subtle gradient overlay for better contrast
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.1),
-                    ],
-                  ),
-                ),
+          // Background image that extends full screen
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage("assets/images/selfserve.png"),
+                fit: BoxFit.cover,
               ),
             ),
           ),
-      
-          // Content area without rounded top corners
-          Expanded(
-            flex: 3,
+          
+          // Content container with rounded top corners
+          Align(
+            alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              color: Colors.white,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
+              ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Drag handle indicator
@@ -76,13 +66,9 @@ class GetStartedPage extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           // Fallback to styled icon if image fails
-                          return Container(
+                          return SizedBox(
                             width: 100,
                             height: 100,
-                            decoration: const BoxDecoration(
-                              color: primaryGreen,
-                              shape: BoxShape.circle,
-                            ),
                           );
                         },
                       ),
@@ -123,8 +109,12 @@ class GetStartedPage extends StatelessWidget {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () {
-                          // TODO: Navigate to Sign In
-                          debugPrint("Sign In pressed");
+                           Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LoginPage(),
+                          ),
+                        );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,
@@ -208,7 +198,7 @@ class GetStartedPage extends StatelessWidget {
             ),
           ),
         ],
-      )
+      ),
     );
   }
 }
