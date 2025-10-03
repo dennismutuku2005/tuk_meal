@@ -1,0 +1,10 @@
+{
+  "name": "<NAME> == "Variable gets in here",  
+  "prompt": "A 3D soft cartoon-style illustration of <NAME>, modern minimal design, smooth rounded shapes, clean vector look, color palette of green, gold, and dark tones, soft shading, playful, app icon style, no background, transparent background",
+  "style": "3D cartoon, smooth shading, vibrant but limited to green and gold with dark contrasts",
+  "format": {
+    "image_type": "png",
+    "background": "transparent",
+    "size": "1024x1024"
+  }
+}

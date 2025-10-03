@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:tuk_meal/screens/onboarding/OnboardingPage.dart';
 
+Future<void> main() async {
+  // Ensure Flutter bindings are initialized
+  WidgetsFlutterBinding.ensureInitialized();
 
-void main() {
+  // Load environment variables from .env
+  await dotenv.load(fileName: ".env");
+
   runApp(const MyApp());
 }
 

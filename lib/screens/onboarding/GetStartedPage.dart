@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
+import 'package:tuk_meal/screens/auth/GuestPage.dart';
 import 'package:tuk_meal/screens/auth/LoginPage.dart';
+import 'package:tuk_meal/screens/auth/RegisterPage.dart';
 
 class GetStartedPage extends StatelessWidget {
   const GetStartedPage({super.key});
@@ -57,8 +59,8 @@ class GetStartedPage extends StatelessWidget {
                     
                     // Logo with shadow and proper image handling
                     SizedBox(
-                      width: 100,
-                      height: 100,
+                      width: 140,
+                      height: 140,
                      child: Image.asset(
                         'assets/images/logo.png',
                         width: 100,
@@ -144,8 +146,12 @@ class GetStartedPage extends StatelessWidget {
                       height: 56,
                       child: OutlinedButton(
                         onPressed: () {
-                          // TODO: Navigate to Sign Up
-                          debugPrint("Sign Up pressed");
+                            Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RegisterPage(),
+                          ),
+                        );
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: primaryGreen,
@@ -173,8 +179,12 @@ class GetStartedPage extends StatelessWidget {
                     // Optional: Add "Continue as Guest" link
                     TextButton(
                       onPressed: () {
-                        // TODO: Continue as guest
-                        debugPrint("Continue as guest pressed");
+                     Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const GuestPage(),
+                          ),
+                        );
                       },
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.grey[600],
