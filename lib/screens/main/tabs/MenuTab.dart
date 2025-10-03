@@ -1,5 +1,8 @@
+import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
+import 'package:http/http.dart' as http;
 import 'package:tuk_meal/screens/meal/CartPage.dart';
 import 'package:tuk_meal/screens/meal/MealDetailsPage.dart';
 
@@ -11,27 +14,48 @@ class MenuTab extends StatefulWidget {
   State<MenuTab> createState() => _MenuTabState();
 }
 
-class _MenuTabState extends State<MenuTab> {
+class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
   static const Color primaryGreen = Color(0xFF0F7B0F);
   static const Color backgroundColor = Color(0xFFF8F9FA);
+  static const Color accentOrange = Color(0xFFFF6B35);
 
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = false;
+  bool isLoading = true;
+  bool isLoadingMore = false;
+  String? errorMessage;
+  
+  // Pagination variables
   int _currentPage = 1;
   final int _itemsPerPage = 10;
+  bool _hasMoreData = true;
 
-  List<Map<String, dynamic>> _allFoodItems = [];
-  List<Map<String, dynamic>> _filteredFoodItems = [];
-  List<Map<String, dynamic>> _displayedFoodItems = [];
+  List<Map<String, dynamic>> allMeals = [];
+  List<Map<String, dynamic>> _filteredMeals = [];
+  List<Map<String, dynamic>> _displayedMeals = [];
 
   String _currentMealTime = "Breakfast";
+  int _selectedCategoryIndex = 0;
+
+  final List<Map<String, dynamic>> categories = [
+    {"name": "All", "icon": Icons.restaurant_menu},
+    {"name": "Breakfast", "icon": Icons.free_breakfast},
+    {"name": "Lunch", "icon": Icons.lunch_dining},
+    {"name": "Dinner", "icon": Icons.dinner_dining},
+    {"name": "Snacks", "icon": Icons.cookie},
+  ];
+
+  late AnimationController _fabController;
 
   @override
   void initState() {
     super.initState();
+    _fabController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
     _determineMealTime();
-    _loadFoodItems();
+    fetchMealsData();
     _scrollController.addListener(_scrollListener);
   }
 
@@ -39,6 +63,7 @@ class _MenuTabState extends State<MenuTab> {
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _fabController.dispose();
     super.dispose();
   }
 
@@ -55,344 +80,304 @@ class _MenuTabState extends State<MenuTab> {
     }
   }
 
-  void _loadFoodItems() {
-    setState(() {
-      _isLoading = true;
-    });
-
-    Future.delayed(Duration(milliseconds: 800), () {
-      List<Map<String, dynamic>> newItems = [
-        {
-          "name": "Chapo Beans",
-          "price": 70,
-          "rating": 4.5,
-          "calories": 450,
-          "prepTime": "15 min",
-          "category": "Breakfast",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Ugali Nyama",
-          "price": 120,
-          "rating": 4.8,
-          "calories": 620,
-          "prepTime": "25 min",
-          "category": "Lunch",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Rice Ndengu",
-          "price": 90,
-          "rating": 4.2,
-          "calories": 520,
-          "prepTime": "20 min",
-          "category": "Lunch",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": false,
-        },
-        {
-          "name": "Mandazi Chai",
-          "price": 50,
-          "rating": 4.7,
-          "calories": 320,
-          "prepTime": "10 min",
-          "category": "Breakfast",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Chapati & Beans",
-          "price": 80,
-          "rating": 4.6,
-          "calories": 480,
-          "prepTime": "15 min",
-          "category": "Dinner",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Pilau Beef",
-          "price": 150,
-          "rating": 4.9,
-          "calories": 680,
-          "prepTime": "30 min",
-          "category": "Lunch",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": false,
-        },
-        {
-          "name": "Fruit Salad",
-          "price": 60,
-          "rating": 4.3,
-          "calories": 180,
-          "prepTime": "5 min",
-          "category": "Snacks",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Vegetable Curry",
-          "price": 85,
-          "rating": 4.4,
-          "calories": 380,
-          "prepTime": "20 min",
-          "category": "Dinner",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": false,
-        },
-        {
-          "name": "Chicken Stew",
-          "price": 130,
-          "rating": 4.7,
-          "calories": 550,
-          "prepTime": "25 min",
-          "category": "Lunch",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": true,
-        },
-        {
-          "name": "Tea with Snacks",
-          "price": 40,
-          "rating": 4.2,
-          "calories": 220,
-          "prepTime": "5 min",
-          "category": "Snacks",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": false,
-        },
-      ];
-
-      for (int i = 0; i < 20; i++) {
-        newItems.add({
-          "name": "Special Meal ${i + 1}",
-          "price": 100 + (i * 10),
-          "rating": 4.0 + (i * 0.1),
-          "calories": 400 + (i * 50),
-          "prepTime": "${10 + (i % 15)} min",
-          "category": i % 4 == 0 ? "Breakfast" : i % 4 == 1 ? "Lunch" : i % 4 == 2 ? "Dinner" : "Snacks",
-          "image": "https://i.pinimg.com/736x/16/55/34/1655344a57f56f0815b6579bc8201405.jpg",
-          "blurHash": "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
-          "isRecommended": i % 3 == 0,
-        });
-      }
-
+  Future<void> fetchMealsData() async {
+    try {
       setState(() {
-        _allFoodItems = newItems;
-        _filteredFoodItems = _getRecommendedItems();
-        _displayedFoodItems = _filteredFoodItems.take(_itemsPerPage).toList();
-        _isLoading = false;
+        isLoading = true;
+        errorMessage = null;
+        _currentPage = 1;
+        _hasMoreData = true;
       });
-    });
+
+      final response = await http
+          .get(
+            Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/homefetch.php'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty) {
+          throw Exception('Empty response from server');
+        }
+
+        final data = json.decode(response.body);
+
+        if (data is Map<String, dynamic>) {
+          // Combine both meals and popular meals into one list
+          List<Map<String, dynamic>> combinedMeals = [];
+          if (data['meals'] != null) {
+            combinedMeals.addAll(List<Map<String, dynamic>>.from(data['meals']));
+          }
+          if (data['popular'] != null) {
+            combinedMeals.addAll(List<Map<String, dynamic>>.from(data['popular']));
+          }
+
+          // Remove duplicates based on meal ID if available
+          final uniqueMeals = _removeDuplicates(combinedMeals);
+
+          setState(() {
+            allMeals = uniqueMeals;
+            _filteredMeals = _getFilteredMeals();
+            _displayedMeals = _filteredMeals.take(_itemsPerPage).toList();
+            _hasMoreData = _displayedMeals.length < _filteredMeals.length;
+            isLoading = false;
+          });
+        } else {
+          throw Exception('Invalid data format received');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString().contains('SocketException') ||
+                e.toString().contains('TimeoutException')
+            ? 'Network error. Please check your internet connection and try again.'
+            : 'Failed to load meals: $e';
+        isLoading = false;
+      });
+    }
   }
 
-  List<Map<String, dynamic>> _getRecommendedItems() {
-    return _allFoodItems.where((item) {
-      return item["category"] == _currentMealTime || item["isRecommended"];
-    }).toList();
+  List<Map<String, dynamic>> _removeDuplicates(List<Map<String, dynamic>> meals) {
+    final seenIds = <String>{};
+    final uniqueMeals = <Map<String, dynamic>>[];
+    
+    for (final meal in meals) {
+      final id = meal['id']?.toString() ?? meal['name']?.toString();
+      if (id != null && !seenIds.contains(id)) {
+        seenIds.add(id);
+        uniqueMeals.add(meal);
+      }
+    }
+    
+    return uniqueMeals;
+  }
+
+  List<Map<String, dynamic>> _getFilteredMeals() {
+    if (_selectedCategoryIndex == 0) {
+      // Show ALL meals when "All" category is selected
+      return allMeals;
+    } else {
+      // Show meals for selected category
+      final selectedCategory = categories[_selectedCategoryIndex]["name"].toString().toLowerCase();
+      return allMeals.where((meal) {
+        final category = (meal["category"] ?? "").toString().toLowerCase();
+        return category == selectedCategory;
+      }).toList();
+    }
   }
 
   void _scrollListener() {
-    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 100) {
       _loadMoreItems();
     }
   }
 
   void _loadMoreItems() {
-    if (_isLoading) return;
+    if (isLoadingMore || !_hasMoreData) return;
 
     setState(() {
-      _isLoading = true;
+      isLoadingMore = true;
     });
 
-    Future.delayed(Duration(milliseconds: 1000), () {
-      setState(() {
-        _currentPage++;
-        int startIndex = (_currentPage - 1) * _itemsPerPage;
-        int endIndex = startIndex + _itemsPerPage;
+    Future.delayed(Duration(milliseconds: 500), () {
+      final startIndex = _currentPage * _itemsPerPage;
+      final endIndex = startIndex + _itemsPerPage;
 
-        if (startIndex < _filteredFoodItems.length) {
-          if (endIndex > _filteredFoodItems.length) {
-            endIndex = _filteredFoodItems.length;
-          }
-          _displayedFoodItems.addAll(_filteredFoodItems.sublist(startIndex, endIndex));
-        }
-        _isLoading = false;
-      });
+      if (startIndex < _filteredMeals.length) {
+        setState(() {
+          _currentPage++;
+          _displayedMeals.addAll(_filteredMeals.sublist(
+            startIndex,
+            endIndex < _filteredMeals.length ? endIndex : _filteredMeals.length,
+          ));
+          _hasMoreData = _displayedMeals.length < _filteredMeals.length;
+          isLoadingMore = false;
+        });
+      } else {
+        setState(() {
+          _hasMoreData = false;
+          isLoadingMore = false;
+        });
+      }
     });
   }
 
   void _onSearchChanged(String value) {
     setState(() {
       if (value.isEmpty) {
-        _filteredFoodItems = _getRecommendedItems();
+        _filteredMeals = _getFilteredMeals();
       } else {
-        _filteredFoodItems = _allFoodItems.where((item) {
-          return item["name"].toLowerCase().contains(value.toLowerCase());
+        _filteredMeals = allMeals.where((meal) {
+          final name = (meal["name"] ?? "").toString().toLowerCase();
+          final category = (meal["category"] ?? "").toString().toLowerCase();
+          final description = (meal["description"] ?? "").toString().toLowerCase();
+          return name.contains(value.toLowerCase()) ||
+              category.contains(value.toLowerCase()) ||
+              description.contains(value.toLowerCase());
         }).toList();
       }
       _currentPage = 1;
-      _displayedFoodItems = _filteredFoodItems.take(_itemsPerPage).toList();
+      _displayedMeals = _filteredMeals.take(_itemsPerPage).toList();
+      _hasMoreData = _displayedMeals.length < _filteredMeals.length;
     });
+  }
+
+  void filterMealsByCategory(int categoryIndex) {
+    setState(() {
+      _selectedCategoryIndex = categoryIndex;
+      _filteredMeals = _getFilteredMeals();
+      _currentPage = 1;
+      _displayedMeals = _filteredMeals.take(_itemsPerPage).toList();
+      _hasMoreData = _displayedMeals.length < _filteredMeals.length;
+    });
+  }
+
+  void _onAddToCart(Map<String, dynamic> item) {
+    if (!_fabController.isAnimating && mounted) {
+      _fabController.forward().then((_) => _fabController.reverse());
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 12),
+              Text('${item["name"]} added to cart!'),
+            ],
+          ),
+          backgroundColor: primaryGreen,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          // App bar
-          SliverAppBar(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            floating: true,
-            pinned: true,
-            automaticallyImplyLeading: false,
-            title: Text(
-              "Personalized Menu",
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.bold,
-                fontSize: 22,
-              ),
+      body: RefreshIndicator(
+        onRefresh: fetchMealsData,
+        color: primaryGreen,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _buildAppBar(context),
+            _buildGreetingSection(),
+            _buildSearchBar(),
+            _buildCategorySection(),
+            _buildContentSection(),
+            if (isLoadingMore) _buildLoadingMoreIndicator(),
+            const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  SliverAppBar _buildAppBar(BuildContext context) {
+    return SliverAppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      floating: true,
+      pinned: true,
+      automaticallyImplyLeading: false,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.shopping_cart_outlined, color: Colors.black87, size: 26),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => CartPage()),
-                  );
-                },
+          ],
+        ),
+      ),
+      title: Row(
+        children: [
+    
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Personalized Menu",
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
-              SizedBox(width: 8),
+             
             ],
           ),
+        ],
+      ),
+      actions: [
+        _buildAppBarButton(
+          icon: Icons.shopping_cart_outlined,
+          badge: "2",
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CartPage()),
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
 
-          // Time-based greeting and recommendation
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Good ${_getTimeGreeting()}, ${widget.userData['name'] ?? 'there'}!",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    "Recommended $_currentMealTime options for you",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildAppBarButton({
+    required IconData icon,
+    String? badge,
+    required VoidCallback onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(icon, color: Colors.black87, size: 22),
+              onPressed: onPressed,
             ),
           ),
-
-          // Search bar
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          if (badge != null)
+            Positioned(
+              right: 8,
+              top: 8,
               child: Container(
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: accentOrange,
+                  shape: BoxShape.circle,
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, color: Colors.grey),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: "Search for food...",
-                          hintStyle: TextStyle(color: Colors.grey),
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Food items grid
-          if (_displayedFoodItems.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.all(16),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.75,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = _displayedFoodItems[index];
-                    return _buildFoodItemCard(item, index);
-                  },
-                  childCount: _displayedFoodItems.length,
-                ),
-              ),
-            )
-          else if (!_isLoading)
-            SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Text(
-                    "No food items found",
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
-                ),
-              ),
-            ),
-
-          // Loading indicator
-          if (_isLoading)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Center(
-                  child: CircularProgressIndicator(color: primaryGreen),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
@@ -401,11 +386,239 @@ class _MenuTabState extends State<MenuTab> {
     );
   }
 
-  String _getTimeGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'morning';
-    if (hour < 17) return 'afternoon';
-    return 'evening';
+  SliverToBoxAdapter _buildGreetingSection() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Good ${_getTimeGreeting()}, ${widget.userData['name'] ?? 'there'}!",
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _selectedCategoryIndex == 0 
+                ? "All meals available for you"
+                : "${categories[_selectedCategoryIndex]['name']} options",
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  SliverToBoxAdapter _buildSearchBar() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Hero(
+          tag: 'menu_search_bar',
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryGreen.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.search,
+                      color: primaryGreen,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      decoration: const InputDecoration(
+                        hintText: "Search for delicious food...",
+                        hintStyle: TextStyle(color: Colors.grey, fontSize: 15),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.tune, color: Colors.grey[600], size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  SliverToBoxAdapter _buildCategorySection() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: SizedBox(
+          height: 110,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              final isSelected = index == _selectedCategoryIndex;
+              return GestureDetector(
+                onTap: () => filterMealsByCategory(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  margin: const EdgeInsets.only(right: 12),
+                  width: 80,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? const LinearGradient(
+                                  colors: [primaryGreen, Color(0xFF0D6A0D)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
+                          color: isSelected ? null : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isSelected
+                                  ? primaryGreen.withOpacity(0.3)
+                                  : Colors.black.withOpacity(0.05),
+                              blurRadius: isSelected ? 16 : 8,
+                              offset: Offset(0, isSelected ? 6 : 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          category["icon"] as IconData,
+                          color: isSelected ? Colors.white : Colors.grey[700],
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        category["name"] as String,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? primaryGreen : Colors.grey[700],
+                          fontSize: 13,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentSection() {
+    if (isLoading && _displayedMeals.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.all(16),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.75,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _buildShimmerCard(),
+            childCount: 6,
+          ),
+        ),
+      );
+    }
+
+    if (errorMessage != null) {
+      return SliverToBoxAdapter(child: _buildErrorState());
+    }
+
+    if (_displayedMeals.isEmpty) {
+      return SliverToBoxAdapter(child: _buildEmptyState());
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.75,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = _displayedMeals[index];
+            return _buildFoodItemCard(item, index);
+          },
+          childCount: _displayedMeals.length,
+        ),
+      ),
+    );
+  }
+
+  SliverToBoxAdapter _buildLoadingMoreIndicator() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: Column(
+            children: [
+              CircularProgressIndicator(color: primaryGreen),
+              const SizedBox(height: 8),
+              Text(
+                'Loading more meals...',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildFoodItemCard(Map<String, dynamic> item, int index) {
@@ -413,8 +626,12 @@ class _MenuTabState extends State<MenuTab> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => MealDetailPage(meal: item),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                MealDetailPage(meal: item),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
           ),
         );
       },
@@ -424,9 +641,9 @@ class _MenuTabState extends State<MenuTab> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 12,
-              offset: Offset(0, 4),
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -440,37 +657,47 @@ class _MenuTabState extends State<MenuTab> {
                   height: 120,
                   width: double.infinity,
                   child: ClipRRect(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
                     child: Image.network(
-                      item["image"],
+                      item["image"] ?? "",
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
                         return BlurHash(
-                          hash: item["blurHash"] ?? "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
+                          hash: "L9BX]k}@D*D*~qD%M{RjD%M{Rj-;",
                           curve: Curves.easeIn,
-                          duration: Duration(milliseconds: 500),
+                          duration: const Duration(milliseconds: 500),
                           imageFit: BoxFit.cover,
                         );
                       },
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: Colors.grey[300],
-                        child: Icon(Icons.error, color: Colors.grey),
+                        child: const Icon(
+                          Icons.restaurant,
+                          color: Colors.grey,
+                          size: 40,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                if (item["isRecommended"])
+                if (_selectedCategoryIndex == 0 && 
+                    item["category"]?.toString().toLowerCase() == _currentMealTime.toLowerCase())
                   Positioned(
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: primaryGreen.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
+                      child: const Text(
                         "Recommended",
                         style: TextStyle(
                           color: Colors.white,
@@ -484,18 +711,27 @@ class _MenuTabState extends State<MenuTab> {
                   top: 8,
                   right: 8,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                        ),
+                      ],
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.star, color: Colors.amber, size: 14),
-                        SizedBox(width: 2),
+                        const Icon(Icons.star, color: Colors.amber, size: 14),
+                        const SizedBox(width: 2),
                         Text(
-                          item["rating"].toString(),
-                          style: TextStyle(
+                          (item["rating"] ?? "0.0").toString(),
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -508,72 +744,287 @@ class _MenuTabState extends State<MenuTab> {
             ),
 
             // Food details
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item["name"],
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item["name"] ?? "Unknown",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 12,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              item["prep_time"] ?? "N/A",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.access_time, size: 12, color: Colors.grey),
-                      SizedBox(width: 4),
-                      Text(
-                        item["prepTime"],
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "KES ${item["price"] ?? "0"}",
+                          style: const TextStyle(
+                            color: primaryGreen,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.local_fire_department, size: 12, color: Colors.orange),
-                      SizedBox(width: 4),
-                      Text(
-                        "${item["calories"]} cal",
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _onAddToCart(item),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [primaryGreen, Color(0xFF0D6A0D)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryGreen.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "KES ${item["price"]}",
-                        style: TextStyle(
-                          color: primaryGreen,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Container(
-                        padding: EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: primaryGreen,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.add, color: Colors.white, size: 16),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildShimmerCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 120,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 16,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 12,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        height: 16,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      Container(
+                        height: 32,
+                        width: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.cloud_off, color: Colors.red, size: 64),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "Oops! Something went wrong",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            errorMessage ?? "Unable to load meals",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: fetchMealsData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Try Again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryGreen,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: primaryGreen.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.restaurant_menu,
+              color: primaryGreen,
+              size: 64,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            "No meals found",
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Try selecting a different category\nor check back later for new items!",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed: () => filterMealsByCategory(0),
+            icon: const Icon(Icons.refresh),
+            label: const Text('View All Meals'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: primaryGreen,
+              side: const BorderSide(color: primaryGreen, width: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getTimeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
   }
 }
