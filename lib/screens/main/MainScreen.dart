@@ -18,7 +18,6 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
   bool _isLoading = true;
-  String? _savedToken;
 
   static const Color primaryGreen = Color(0xFF0F7B0F);
 
@@ -48,10 +47,9 @@ class _MainPageState extends State<MainPage> {
   Future<void> _loadToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final storedToken = prefs.getString("auth_token");
+      prefs.getString("auth_token");
 
       setState(() {
-        _savedToken = storedToken;
       });
     } catch (e) {
       debugPrint("Error loading token: $e");
