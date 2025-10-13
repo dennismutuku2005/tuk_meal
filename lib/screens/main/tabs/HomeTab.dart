@@ -199,17 +199,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       ),
       title: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [primaryGreen, Color(0xFF0D6A0D)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.restaurant, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 12),
+         
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -219,14 +209,6 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                   color: Colors.black87,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                ),
-              ),
-              Text(
-                "Order your favorite meal",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 11,
-                  fontWeight: FontWeight.normal,
                 ),
               ),
             ],

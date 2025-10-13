@@ -28,7 +28,7 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
   }
 
   void _loadData() {
-    // Simulate loading data
+    // Simulate loading data with dummy data for now
     setState(() {
       // Active orders (meals to be consumed)
       _activeOrders.addAll([

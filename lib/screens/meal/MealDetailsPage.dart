@@ -1,5 +1,10 @@
-import 'dart:ui';
+// ignore: file_names
 import 'package:flutter/material.dart';
+import 'widgets/meal_image_widget.dart';
+import 'widgets/meal_details_widget.dart';
+import 'widgets/quantity_selector_widget.dart';
+import 'widgets/nutrition_info_widget.dart';
+import 'widgets/add_to_cart_widget.dart';
 
 class MealDetailPage extends StatefulWidget {
   final Map<String, dynamic> meal;
@@ -13,14 +18,19 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
   static const Color primaryGreen = Color(0xFF0F7B0F);
   static const Color backgroundColor = Color(0xFFF8F9FA);
 
-  int _quantity = 1;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  
+  int _quantity = 1; // Now managed at the page level
 
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -32,6 +42,16 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
     _animationController.forward();
+  }
+
+  void _triggerAnimation() {
+    _animationController.forward(from: 0);
+  }
+
+  void _onQuantityChanged(int newQuantity) {
+    setState(() {
+      _quantity = newQuantity;
+    });
   }
 
   @override
@@ -89,374 +109,49 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
 
   SliverToBoxAdapter _buildMealImage() {
     return SliverToBoxAdapter(
-      child: Container(
-        height: 250,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.network(
-                widget.meal['image'] ?? '',
-                height: 250,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    height: 250,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-                      child: Center(child: CircularProgressIndicator(color: primaryGreen)),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 250,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(Icons.error, color: Colors.grey, size: 48),
-                ),
-              ),
-            ),
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.5),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: primaryGreen.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  widget.meal['category'] ?? 'N/A',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: MealImageWidget(
+        imageUrl: widget.meal['image'] ?? '',
+        category: widget.meal['category'] ?? 'N/A',
+        primaryColor: primaryGreen,
       ),
     );
   }
 
   SliverToBoxAdapter _buildMealDetails() {
     return SliverToBoxAdapter(
-      child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.meal['name'] ?? 'Unknown Meal',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                Text(
-                  "KES ${widget.meal['price']?.toString() ?? '0.00'}",
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: primaryGreen,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.star, color: Colors.amber, size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  widget.meal['rating']?.toString() ?? '0.0',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const Icon(Icons.access_time, color: Colors.grey, size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  widget.meal['prep_time'] ?? 'N/A',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.meal['description'] ?? 'A delicious meal prepared with fresh ingredients.',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontSize: 14,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.justify,
-            ),
-          ],
-        ),
+      child: MealDetailsWidget(
+        meal: widget.meal,
+        primaryColor: primaryGreen,
       ),
     );
   }
 
   SliverToBoxAdapter _buildQuantitySelector() {
     return SliverToBoxAdapter(
-      child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Quantity",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: GestureDetector(
-                    onTap: () {
-                      if (_quantity > 1) {
-                        setState(() => _quantity--);
-                        _animationController.forward(from: 0);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.remove, color: Colors.black87, size: 20),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Text(
-                  _quantity.toString(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(width: 20),
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _quantity++);
-                      _animationController.forward(from: 0);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primaryGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryGreen.withOpacity(0.3),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.add, color: primaryGreen, size: 20),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      child: QuantitySelectorWidget(
+        primaryColor: primaryGreen,
+        scaleAnimation: _scaleAnimation,
+        onAnimationTrigger: _triggerAnimation,
+        onQuantityChanged: _onQuantityChanged,
       ),
     );
   }
 
   SliverToBoxAdapter _buildNutritionInfo() {
     return SliverToBoxAdapter(
-      child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Nutrition Information",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNutritionItem("Calories", widget.meal['calories'] ?? 'N/A'),
-                _buildNutritionItem("Protein", widget.meal['protein'] ?? 'N/A'),
-                _buildNutritionItem("Carbs", widget.meal['carbs'] ?? 'N/A'),
-                _buildNutritionItem("Fat", widget.meal['fat'] ?? 'N/A'),
-              ],
-            ),
-          ],
-        ),
-      ),
+      child: NutritionInfoWidget(meal: widget.meal),
     );
   }
 
   SliverToBoxAdapter _buildAddToCartSection() {
     return SliverToBoxAdapter(
-      child: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(20),
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Total Price",
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    "KES ${_calculateTotalPrice().toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: primaryGreen,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: GestureDetector(
-                onTapDown: (_) => _animationController.reverse(),
-                onTapUp: (_) {
-                  _animationController.forward();
-                  _addToCart();
-                },
-                onTapCancel: () => _animationController.forward(),
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: ElevatedButton(
-                    onPressed: _addToCart,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                      shadowColor: primaryGreen.withOpacity(0.3),
-                    ),
-                    child: const Text(
-                      "Add to Cart",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: AddToCartWidget(
+        primaryColor: primaryGreen,
+        scaleAnimation: _scaleAnimation,
+        totalPrice: _calculateTotalPrice(),
+        onAddToCart: _addToCart,
+        onAnimationTrigger: _triggerAnimation,
       ),
-    );
-  }
-
-  Widget _buildNutritionItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 12,
-          ),
-        ),
-      ],
     );
   }
 
@@ -486,8 +181,9 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
     );
 
     Future.delayed(const Duration(milliseconds: 1500), () {
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+      }
     });
   }
 }

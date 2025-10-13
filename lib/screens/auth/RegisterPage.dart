@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:tuk_meal/screens/auth/LoginPage.dart';
 import 'package:http/http.dart' as http;
 import 'package:tuk_meal/screens/main/MainScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -54,6 +55,19 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
+  // Save token to SharedPreferences
+  Future<void> _saveTokenToSharedPreferences(String token) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', token);
+      await prefs.setBool('is_logged_in', true);
+      print('✅ Token saved to SharedPreferences');
+    } catch (e) {
+      print('❌ Error saving token to SharedPreferences: $e');
+      throw Exception('Failed to save authentication data');
+    }
+  }
+
   void _register() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -81,10 +95,21 @@ class _RegisterPageState extends State<RegisterPage> {
           if (data["status"] == true) {
             final token = data["token"];
 
-            // ✅ Navigate to MainPage with token only
+            // ✅ Save token to SharedPreferences
+            await _saveTokenToSharedPreferences(token);
+
+            // ✅ Navigate to MainPage with token
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => MainPage(token: token)),
+            );
+
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text("Registration successful!"),
+                backgroundColor: primaryGreen,
+              ),
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +130,10 @@ class _RegisterPageState extends State<RegisterPage> {
       } catch (e) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text("Error: $e"), 
+            backgroundColor: Colors.red
+          ),
         );
       }
     }
@@ -295,8 +323,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     onPressed: _isLoading ? null : _register,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
-                      foregroundColor:
-                          Colors.white, // <-- this makes text/icons white
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(28),
                       ),
