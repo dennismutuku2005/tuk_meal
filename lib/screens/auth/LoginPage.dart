@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:tuk_meal/screens/main/MainScreen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -52,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
 
         //
         final baseUrl = dotenv.env['API_BASE_URL'] ?? "";
-        final url = Uri.parse("$baseUrl/register.php");
+        final url = Uri.parse("$baseUrl/login.php");
         // Prepare the request
         final response = await http.post(
           url,
@@ -65,6 +66,8 @@ class _LoginPageState extends State<LoginPage> {
 
         final data = jsonDecode(response.body);
 
+        debugPrint('Login response: $data');
+
         if (data['status'] == true) {
           // Save user data to SharedPreferences
           await _saveUserData(data);
@@ -72,7 +75,7 @@ class _LoginPageState extends State<LoginPage> {
           // Navigate to home page and clear all previous routes
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
+           MaterialPageRoute(builder: (_) => const MainPage(token: '')),
             (route) => false,
           );
 
@@ -124,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
               children: [
                 // Custom back button
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(1.0),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: IconButton(
@@ -143,7 +146,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10),
 
                           // Header section
                           Center(
