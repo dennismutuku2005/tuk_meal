@@ -5,6 +5,7 @@ import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:http/http.dart' as http;
 import 'package:tuk_meal/screens/meal/CartPage.dart';
 import 'package:tuk_meal/screens/meal/MealDetailsPage.dart';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 
 class MenuTab extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -24,6 +25,9 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
   bool isLoading = true;
   bool isLoadingMore = false;
   String? errorMessage;
+  
+  // Cart count variable
+  int cartItemsCount = 0;
   
   // Pagination variables
   int _currentPage = 1;
@@ -56,7 +60,15 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
     );
     _determineMealTime();
     fetchMealsData();
+    _loadCartCount(); // Load cart count on init
     _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh cart count when returning to this page
+    _loadCartCount();
   }
 
   @override
@@ -77,6 +89,181 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
       _currentMealTime = "Snacks";
     } else {
       _currentMealTime = "Dinner";
+    }
+  }
+
+  // Load cart count from API
+  Future<void> _loadCartCount() async {
+    try {
+      // Check if user is logged in
+      final isLoggedIn = await SharedPrefsService.isLoggedIn();
+      final token = await SharedPrefsService.getToken();
+      
+      if (!isLoggedIn || token == null) {
+        setState(() {
+          cartItemsCount = 0;
+        });
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/count_cart.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'mobile_number': token,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          setState(() {
+            cartItemsCount = data['cart_count'] ?? 0;
+          });
+          print('MenuTab - Cart count loaded: $cartItemsCount');
+        } else {
+          print('MenuTab - Failed to load cart count: ${data['message']}');
+          setState(() {
+            cartItemsCount = 0;
+          });
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('MenuTab - Error loading cart count: $e');
+      setState(() {
+        cartItemsCount = 0;
+      });
+    }
+  }
+
+  // Add to cart API integration
+  Future<void> _addToCart(Map<String, dynamic> item) async {
+    try {
+      // Check if user is logged in
+      final isLoggedIn = await SharedPrefsService.isLoggedIn();
+      final token = await SharedPrefsService.getToken();
+      
+      if (!isLoggedIn || token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Please login to add items to cart'),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'LOGIN',
+              textColor: Colors.white,
+              onPressed: () {
+                // Navigate to login page
+                // Navigator.push(context, MaterialPageRoute(builder: (_) => LoginPage()));
+              },
+            ),
+          ),
+        );
+        return;
+      }
+
+      print('MenuTab - Adding to cart: ${item['name']}');
+      print('Item ID: ${item['id']}');
+
+      // Convert string ID to integer
+      final productId = int.tryParse(item['id'].toString()) ?? 0;
+      
+      if (productId == 0) {
+        throw Exception('Invalid meal ID format');
+      }
+
+      final response = await http.post(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/addcart.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'mobile_number': token,
+          'product_id': productId,
+          'quantity': 1,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          // Refresh cart count from API
+          await _loadCartCount();
+          
+          // Add animation feedback
+          if (!_fabController.isAnimating && mounted) {
+            _fabController.forward().then((_) => _fabController.reverse());
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text('${item["name"]} added to cart!'),
+                ],
+              ),
+              backgroundColor: primaryGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          print('MenuTab - API returned error: ${data['message']}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(data['message'] ?? 'Failed to add to cart'),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('MenuTab - Error in _addToCart: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Text('Error: ${e.toString()}'),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -239,31 +426,6 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
     });
   }
 
-  void _onAddToCart(Map<String, dynamic> item) {
-    if (!_fabController.isAnimating && mounted) {
-      _fabController.forward().then((_) => _fabController.reverse());
-    }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('${item["name"]} added to cart!'),
-            ],
-          ),
-          backgroundColor: primaryGreen,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -309,7 +471,6 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
       ),
       title: Row(
         children: [
-    
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -321,7 +482,6 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
                   fontSize: 18,
                 ),
               ),
-             
             ],
           ),
         ],
@@ -329,11 +489,14 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
       actions: [
         _buildAppBarButton(
           icon: Icons.shopping_cart_outlined,
-          badge: "2",
+          badge: cartItemsCount > 0 ? cartItemsCount.toString() : null,
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const CartPage()),
-          ),
+          ).then((_) {
+            // Refresh cart count when returning from cart page
+            _loadCartCount();
+          }),
         ),
         const SizedBox(width: 8),
       ],
@@ -798,7 +961,7 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
                         Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () => _onAddToCart(item),
+                            onTap: () => _addToCart(item),
                             borderRadius: BorderRadius.circular(12),
                             child: Container(
                               padding: const EdgeInsets.all(8),
@@ -837,6 +1000,7 @@ class _MenuTabState extends State<MenuTab> with TickerProviderStateMixin {
     );
   }
 
+  // ... Rest of the helper methods remain the same (_buildShimmerCard, _buildErrorState, _buildEmptyState, _getTimeGreeting)
   Widget _buildShimmerCard() {
     return Container(
       decoration: BoxDecoration(
