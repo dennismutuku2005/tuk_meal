@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
   url_launcher: ^6.3.2
   flutter_blurhash: ^0.9.1
   intl: ^0.20.2
