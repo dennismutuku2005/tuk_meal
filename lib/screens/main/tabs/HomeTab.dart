@@ -1,10 +1,10 @@
-import 'dart:ui';
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:tuk_meal/screens/meal/CartPage.dart';
 import 'package:tuk_meal/screens/meal/MealDetailsPage.dart';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -51,6 +51,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   List<Map<String, dynamic>> filteredMeals = [];
   bool isLoading = true;
   String? errorMessage;
+  int cartItemsCount = 0;
 
   late PageController _bannerController;
   late Timer _bannerTimer;
@@ -67,6 +68,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     );
     fetchMealsData();
     _startBannerAutoScroll();
+    _loadCartCount();
   }
 
   @override
@@ -139,6 +141,13 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadCartCount() async {
+    // You can implement this to fetch actual cart count from API
+    setState(() {
+      cartItemsCount = 3; // Temporary static count
+    });
+  }
+
   void filterMealsByCategory(int categoryIndex) {
     setState(() {
       _selectedCategoryIndex = categoryIndex;
@@ -150,6 +159,84 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                   categories[categoryIndex]["name"].toString().toLowerCase())
               .toList();
     });
+  }
+
+  Future<void> _addToCart(Map<String, dynamic> item, String token) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/addcart.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'mobile_number': token,
+          'product_id': item['id'],
+          'quantity': 1,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          // Update cart count
+          setState(() {
+            cartItemsCount++;
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text('${item["name"]} added to cart!'),
+                ],
+              ),
+              backgroundColor: primaryGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(data['message'] ?? 'Failed to add to cart'),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Text('Network error: ${e.toString()}'),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
@@ -197,10 +284,9 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
           ],
         ),
       ),
-      title: Row(
+      title: const Row(
         children: [
-         
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -218,7 +304,7 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
       actions: [
         _buildAppBarButton(
           icon: Icons.shopping_cart_outlined,
-          badge: "3",
+          badge: cartItemsCount > 0 ? cartItemsCount.toString() : null,
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const CartPage()),
@@ -758,25 +844,43 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           // Add haptic feedback and animation
           _fabController.forward().then((_) => _fabController.reverse());
-          // Add to cart logic here
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text('${item["name"]} added to cart!'),
-                ],
+          
+          // Check if user is logged in
+          final isLoggedIn = await SharedPrefsService.isLoggedIn();
+          final token = await SharedPrefsService.getToken();
+          
+          if (!isLoggedIn || token == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text('Please login to add items to cart'),
+                  ],
+                ),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                duration: const Duration(seconds: 3),
+                action: SnackBarAction(
+                  label: 'LOGIN',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    // Navigate to login page
+                    // Navigator.push(context, MaterialPageRoute(builder: (_) => LoginPage()));
+                  },
+                ),
               ),
-              backgroundColor: primaryGreen,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+            );
+            return;
+          }
+
+          // Call add to cart API
+          await _addToCart(item, token);
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
@@ -965,16 +1069,31 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: primaryGreen.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.add,
-                                    color: primaryGreen,
-                                    size: 18,
+                                GestureDetector(
+                                  onTap: () async {
+                                    final token = await SharedPrefsService.getToken();
+                                    if (token != null) {
+                                      await _addToCart(item, token);
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Please login to add items to cart'),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: primaryGreen.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.add,
+                                      color: primaryGreen,
+                                      size: 18,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1210,11 +1329,11 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          const Text(
             "Try selecting a different category\nor check back later for new items!",
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.grey[600],
+              color: Colors.grey,
               fontSize: 14,
             ),
           ),
