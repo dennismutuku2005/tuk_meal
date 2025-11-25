@@ -94,52 +94,71 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   Future<void> fetchMealsData() async {
-    try {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
+  try {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
-      final response = await http
-          .get(
-            Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/homefetch.php'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 15));
+    final response = await http
+        .get(
+          Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/homefetch.php'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 15));
 
-      if (response.statusCode == 200) {
-        if (response.body.isEmpty) {
-          throw Exception('Empty response from server');
-        }
+    if (response.statusCode == 200) {
+      if (response.body.isEmpty) {
+        throw Exception('Empty response from server');
+      }
 
-        final data = json.decode(response.body);
+      // DEBUG: Print raw response
+      print('Raw API Response: ${response.body}');
+      
+      final data = json.decode(response.body);
 
-        if (data is Map<String, dynamic>) {
-          setState(() {
-            allMeals = List<Map<String, dynamic>>.from(data['meals'] ?? []);
-            popularMeals = List<Map<String, dynamic>>.from(data['popular'] ?? []);
-            filteredMeals = allMeals;
-            isLoading = false;
-          });
-        } else {
-          throw Exception('Invalid data format received');
+      // DEBUG: Print data structure
+      print('Parsed Data: $data');
+      print('Data type: ${data.runtimeType}');
+      
+      if (data is Map<String, dynamic>) {
+        // DEBUG: Print keys
+        print('Data keys: ${data.keys}');
+        
+        setState(() {
+          allMeals = List<Map<String, dynamic>>.from(data['meals'] ?? []);
+          popularMeals = List<Map<String, dynamic>>.from(data['popular'] ?? []);
+          filteredMeals = allMeals;
+          isLoading = false;
+        });
+
+        // DEBUG: Print first meal details
+        if (allMeals.isNotEmpty) {
+          print('First meal: ${allMeals.first}');
+          print('First meal keys: ${allMeals.first.keys}');
+          print('First meal ID: ${allMeals.first['id']}');
+          print('First meal ID type: ${allMeals.first['id'].runtimeType}');
         }
       } else {
-        throw Exception('Server error: ${response.statusCode}');
+        throw Exception('Invalid data format received');
       }
-    } catch (e) {
-      setState(() {
-        errorMessage = e.toString().contains('SocketException') ||
-                e.toString().contains('TimeoutException')
-            ? 'Network error. Please check your internet connection and try again.'
-            : 'Failed to load meals: $e';
-        isLoading = false;
-      });
+    } else {
+      throw Exception('Server error: ${response.statusCode}');
     }
+  } catch (e) {
+    print('Error fetching meals: $e');
+    setState(() {
+      errorMessage = e.toString().contains('SocketException') ||
+              e.toString().contains('TimeoutException')
+          ? 'Network error. Please check your internet connection and try again.'
+          : 'Failed to load meals: $e';
+      isLoading = false;
+    });
   }
+}
 
   Future<void> _loadCartCount() async {
     // You can implement this to fetch actual cart count from API
@@ -162,82 +181,102 @@ class _HomeTabState extends State<HomeTab> with TickerProviderStateMixin {
   }
 
   Future<void> _addToCart(Map<String, dynamic> item, String token) async {
-    try {
-      final response = await http.post(
-        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/addcart.php'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'mobile_number': token,
-          'product_id': item['id'],
-          'quantity': 1,
-        }),
-      ).timeout(const Duration(seconds: 10));
+  try {
+    print('=== ADD TO CART DEBUG ===');
+    print('Item ID: ${item['id']}');
+    print('Item ID type: ${item['id'].runtimeType}');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        
-        if (data['status'] == 'success') {
-          // Update cart count
-          setState(() {
-            cartItemsCount++;
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text('${item["name"]} added to cart!'),
-                ],
-              ),
-              backgroundColor: primaryGreen,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text(data['message'] ?? 'Failed to add to cart'),
-                ],
-              ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        throw Exception('Server error: ${response.statusCode}');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('Network error: ${e.toString()}'),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+    // Convert string ID to integer
+    final productId = int.tryParse(item['id'].toString()) ?? 0;
+    
+    print('Converted Product ID: $productId');
+    print('Converted ID type: ${productId.runtimeType}');
+
+    if (productId == 0) {
+      throw Exception('Invalid meal ID format');
     }
+
+    final response = await http.post(
+      Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/addcart.php'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({
+        'mobile_number': token,
+        'product_id': productId, // Send as integer, not string
+        'quantity': 1,
+      }),
+    ).timeout(const Duration(seconds: 10));
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('Parsed response: $data');
+      
+      if (data['status'] == 'success') {
+        // Update cart count
+        setState(() {
+          cartItemsCount++;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text('${item["name"]} added to cart!'),
+              ],
+            ),
+            backgroundColor: primaryGreen,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        print('API returned error: ${data['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(data['message'] ?? 'Failed to add to cart'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      throw Exception('Server error: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error in _addToCart: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 12),
+            Text('Error: ${e.toString()}'),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
