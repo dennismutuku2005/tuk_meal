@@ -2,7 +2,7 @@ name: tuk_meal
 description: "A food ordering and meal management app for TUK students and staff."
 publish_to: 'none'
 
-version: 1.2.0+1
+version: 1.3.0+1
 
 environment:
   sdk: ^3.8.1
