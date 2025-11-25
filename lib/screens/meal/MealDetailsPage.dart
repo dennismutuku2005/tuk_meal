@@ -1,10 +1,13 @@
 // ignore: file_names
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'widgets/meal_image_widget.dart';
 import 'widgets/meal_details_widget.dart';
 import 'widgets/quantity_selector_widget.dart';
 import 'widgets/nutrition_info_widget.dart';
 import 'widgets/add_to_cart_widget.dart';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 
 class MealDetailPage extends StatefulWidget {
   final Map<String, dynamic> meal;
@@ -22,7 +25,8 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   
-  int _quantity = 1; // Now managed at the page level
+  int _quantity = 1;
+  bool _isAddingToCart = false;
 
   @override
   void initState() {
@@ -58,6 +62,133 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _addToCart() async {
+    if (_isAddingToCart) return;
+
+    setState(() {
+      _isAddingToCart = true;
+    });
+
+    // Check if user is logged in
+    final isLoggedIn = await SharedPrefsService.isLoggedIn();
+    final token = await SharedPrefsService.getToken();
+    
+    if (!isLoggedIn || token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Please login to add items to cart'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'LOGIN',
+            textColor: Colors.white,
+            onPressed: () {
+              // Navigate to login page
+              // Navigator.push(context, MaterialPageRoute(builder: (_) => LoginPage()));
+            },
+          ),
+        ),
+      );
+      setState(() {
+        _isAddingToCart = false;
+      });
+      return;
+    }
+
+    try {
+      // Convert string ID to integer for the API
+      final productId = int.tryParse(widget.meal['id'].toString()) ?? 0;
+      
+      if (productId == 0) {
+        throw Exception('Invalid meal ID');
+      }
+
+      final response = await http.post(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/addcart.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'mobile_number': token,
+          'product_id': productId,
+          'quantity': _quantity, // Use the selected quantity
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          // Success animation and feedback
+          _triggerAnimation();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text('${_quantity}x ${widget.meal["name"]} added to cart!'),
+                ],
+              ),
+              backgroundColor: primaryGreen,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // Close page after successful addition
+          Future.delayed(const Duration(milliseconds: 1500), () {
+            if (mounted) {
+              Navigator.pop(context);
+            }
+          });
+        } else {
+          throw Exception(data['message'] ?? 'Failed to add to cart');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Failed to add to cart: ${e.toString()}',
+                  maxLines: 2,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddingToCart = false;
+        });
+      }
+    }
   }
 
   @override
@@ -151,6 +282,7 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
         totalPrice: _calculateTotalPrice(),
         onAddToCart: _addToCart,
         onAnimationTrigger: _triggerAnimation,
+        isLoading: _isAddingToCart,
       ),
     );
   }
@@ -159,31 +291,5 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
     final priceString = widget.meal['price']?.toString() ?? '0.00';
     final price = double.tryParse(priceString) ?? 0.0;
     return price * _quantity;
-  }
-
-  void _addToCart() {
-    final orderItem = {
-      'name': widget.meal['name'] ?? 'Unknown Meal',
-      'price': _calculateTotalPrice(),
-      'quantity': _quantity,
-    };
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Added to cart: ${orderItem['name']}"),
-        backgroundColor: primaryGreen,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    });
   }
 }

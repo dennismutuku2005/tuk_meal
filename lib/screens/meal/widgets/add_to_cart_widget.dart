@@ -6,6 +6,7 @@ class AddToCartWidget extends StatelessWidget {
   final double totalPrice;
   final VoidCallback onAddToCart;
   final VoidCallback onAnimationTrigger;
+  final bool isLoading;
 
   const AddToCartWidget({
     super.key,
@@ -14,6 +15,7 @@ class AddToCartWidget extends StatelessWidget {
     required this.totalPrice,
     required this.onAddToCart,
     required this.onAnimationTrigger,
+    this.isLoading = false,
   });
 
   @override
@@ -60,33 +62,52 @@ class AddToCartWidget extends StatelessWidget {
   Widget _buildAddToCartButton() {
     return Expanded(
       child: GestureDetector(
-        onTapDown: (_) => onAnimationTrigger(),
-        onTapUp: (_) {
-          onAnimationTrigger();
-          onAddToCart();
+        onTapDown: (_) {
+          if (!isLoading) {
+            onAnimationTrigger();
+          }
         },
-        onTapCancel: () => onAnimationTrigger(),
+        onTapUp: (_) {
+          if (!isLoading) {
+            onAnimationTrigger();
+            onAddToCart();
+          }
+        },
+        onTapCancel: () {
+          if (!isLoading) {
+            onAnimationTrigger();
+          }
+        },
         child: ScaleTransition(
           scale: scaleAnimation,
           child: ElevatedButton(
-            onPressed: onAddToCart,
+            onPressed: isLoading ? null : onAddToCart,
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
+              backgroundColor: isLoading ? Colors.grey : primaryColor,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
               elevation: 0,
-              shadowColor: primaryColor.withOpacity(0.3),
+              shadowColor: isLoading ? Colors.grey : primaryColor.withOpacity(0.3),
             ),
-            child: const Text(
-              "Add to Cart",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    "Add to Cart",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ),
       ),
