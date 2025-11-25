@@ -1,15 +1,15 @@
-# TUK Email App - Canteen Pre-Order System
+# TUK e-meal App - Canteen Pre-Order System
 
 A mobile application that streamlines the food ordering process at TUK (Technical University of Kenya), allowing students to pre-order meals and pick them up from the school canteen without waiting in long queues.
 
 ## Overview
 
-The TUK Email App revolutionizes the campus dining experience by enabling students to browse the menu, place orders in advance, and simply collect their meals at their chosen time. This system benefits both students and canteen staff by reducing wait times and enabling better food preparation planning.
+The TUK e-meal App revolutionizes the campus dining experience by enabling students to browse the menu, place orders in advance, and simply collect their meals at their chosen time. This system benefits both students and canteen staff by reducing wait times and enabling better food preparation planning.
 
 ## Features
 
 ### For Students
-- **User Registration & Login**: Secure account creation with email verification
+- **User Registration & Login**: Secure account creation with e-meal verification
 - **Guest Access**: Browse menu and explore features without registration
 - **Pre-Order System**: Order meals hours or days in advance
 - **Time Slot Selection**: Choose convenient pickup times
@@ -65,8 +65,8 @@ flutter run
 
 1. **Register an Account**
    - Open the app and click "Sign Up"
-   - Enter your TUK email address
-   - Verify your email and create a password
+   - Enter your TUK e-meal address
+   - Verify your e-meal and create a password
 
 2. **Browse Menu**
    - View available meals for today and upcoming days
@@ -110,13 +110,13 @@ We welcome contributions from the TUK community! Here's how you can help:
 
 ## Support
 
-For support, email dennismuuo.dev@gmail.com or create an issue in the GitHub repository.
+For support, e-meal dennismuuo.dev@gmail.com or create an issue in the GitHub repository.
 
 ## License
 
 MIT License
 
-Copyright (c) 2025 TUK Email App
+Copyright (c) 2025 TUK e-meal App
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
