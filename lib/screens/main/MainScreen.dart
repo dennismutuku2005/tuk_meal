@@ -67,6 +67,16 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<bool> _onWillPop() async {
+    // If NOT on Home tab (index 0), navigate to Home tab
+    if (_currentIndex != 0) {
+      setState(() {
+        _currentIndex = 0; // Switch to Home tab
+      });
+      HapticFeedback.lightImpact();
+      return false; // Don't exit, just change tab
+    }
+
+    // Only show exit modal when already on Home tab
     final now = DateTime.now();
     if (_currentBackPressTime == null ||
         now.difference(_currentBackPressTime!) > const Duration(seconds: 2)) {
