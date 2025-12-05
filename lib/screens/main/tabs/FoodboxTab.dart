@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 
 class FoodBoxTab extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -14,12 +17,12 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
   static const Color backgroundColor = Color(0xFFF8F9FA);
 
   int _selectedTab = 0; // 0 for Active, 1 for History
-  final List<Map<String, dynamic>> _activeOrders = [];
-  final List<Map<String, dynamic>> _pastReceipts = [];
-
-  double _averageDailySpend = 0.0;
-  double _totalSpendThisWeek = 0.0;
-  double _totalSpendThisMonth = 0.0;
+  List<Map<String, dynamic>> _activeOrders = [];
+  List<Map<String, dynamic>> _pastReceipts = [];
+  
+  bool _isLoading = true;
+  bool _isRefreshing = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -27,133 +30,134 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
     _loadData();
   }
 
-  void _loadData() {
-    // Simulate loading data with dummy data for now
+  Future<void> _loadData() async {
     setState(() {
-      // Active orders (meals to be consumed)
-      _activeOrders.addAll([
-        {
-          "id": "ORD-789012",
-          "date": DateTime.now().add(Duration(hours: 2)),
-          "items": [
-            {"name": "Ugali Nyama", "price": 120, "quantity": 1},
-            {"name": "Fruit Salad", "price": 60, "quantity": 1},
-          ],
-          "total": 180,
-          "status": "Preparing",
-          "canteen": "Main Campus Canteen",
-          "receiptCode": "5A8B2",
-          "qrData": "ORD-789012-5A8B2-${DateTime.now().millisecondsSinceEpoch}",
-        },
-        {
-          "id": "ORD-345678",
-          "date": DateTime.now().add(Duration(hours: 5)),
-          "items": [
-            {"name": "Rice Ndengu", "price": 90, "quantity": 1},
-            {"name": "Juice", "price": 40, "quantity": 1},
-          ],
-          "total": 130,
-          "status": "Ordered",
-          "canteen": "North Campus Canteen",
-          "receiptCode": "3F9C1",
-          "qrData": "ORD-345678-3F9C1-${DateTime.now().millisecondsSinceEpoch}",
-        },
-      ]);
-
-      // Past receipts
-      _pastReceipts.addAll([
-        {
-          "id": "REC-123456",
-          "date": DateTime.now().subtract(Duration(days: 1)),
-          "items": [
-            {"name": "Chapo Beans", "price": 70, "quantity": 2},
-            {"name": "Tea", "price": 30, "quantity": 1},
-          ],
-          "total": 170,
-          "status": "Completed",
-          "canteen": "Main Campus Canteen",
-          "receiptCode": "7D4E2",
-          "qrData": "REC-123456-7D4E2-${DateTime.now().millisecondsSinceEpoch}",
-        },
-        {
-          "id": "REC-234567",
-          "date": DateTime.now().subtract(Duration(days: 2)),
-          "items": [
-            {"name": "Pilau Beef", "price": 150, "quantity": 1},
-          ],
-          "total": 150,
-          "status": "Completed",
-          "canteen": "South Campus Canteen",
-          "receiptCode": "9G1H5",
-          "qrData": "REC-234567-9G1H5-${DateTime.now().millisecondsSinceEpoch}",
-        },
-        {
-          "id": "REC-345678",
-          "date": DateTime.now().subtract(Duration(days: 3)),
-          "items": [
-            {"name": "Vegetable Curry", "price": 85, "quantity": 1},
-            {"name": "Chapati", "price": 30, "quantity": 2},
-          ],
-          "total": 145,
-          "status": "Completed",
-          "canteen": "Main Campus Canteen",
-          "receiptCode": "2J8K3",
-          "qrData": "REC-345678-2J8K3-${DateTime.now().millisecondsSinceEpoch}",
-        },
-        {
-          "id": "REC-456789",
-          "date": DateTime.now().subtract(Duration(days: 4)),
-          "items": [
-            {"name": "Mandazi Chai", "price": 50, "quantity": 1},
-            {"name": "Fruit Salad", "price": 60, "quantity": 1},
-          ],
-          "total": 110,
-          "status": "Completed",
-          "canteen": "North Campus Canteen",
-          "receiptCode": "6L4M9",
-          "qrData": "REC-456789-6L4M9-${DateTime.now().millisecondsSinceEpoch}",
-        },
-        {
-          "id": "REC-567890",
-          "date": DateTime.now().subtract(Duration(days: 5)),
-          "items": [
-            {"name": "Chicken Stew", "price": 130, "quantity": 1},
-            {"name": "Ugali", "price": 40, "quantity": 1},
-          ],
-          "total": 170,
-          "status": "Completed",
-          "canteen": "Main Campus Canteen",
-          "receiptCode": "1N5O7",
-          "qrData": "REC-567890-1N5O7-${DateTime.now().millisecondsSinceEpoch}",
-        },
-      ]);
-
-      // Calculate spending statistics
-      _calculateSpendingStats();
+      _isLoading = true;
+      _errorMessage = null;
     });
+
+    try {
+      final token = await SharedPrefsService.getToken();
+      if (token == null) {
+        throw Exception('Please login to view orders');
+      }
+
+      final response = await http.get(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/foodbox.php')
+          .replace(queryParameters: {
+            'mobile_number': token,
+            'action': 'get_orders'
+          }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          final responseData = data['data'];
+          
+          // Process active orders
+          final List<Map<String, dynamic>> activeOrders = [];
+          final activeOrdersData = (responseData['active_orders'] as List).cast<Map<String, dynamic>>();
+          for (var order in activeOrdersData) {
+            activeOrders.add({
+              'id': 'ORD-${order['id'].toString().padLeft(6, '0')}',
+              'date': DateTime.parse(order['created_at'].toString()),
+              'items': [],
+              'total': (order['total'] is String) ? double.parse(order['total']) : (order['total'] as num).toDouble(),
+              'status': _capitalizeFirstLetter(order['status'].toString()),
+              'canteen': 'TUK Canteen',
+              'receiptCode': order['receipt_code'].toString(),
+              'qrData': order['qr_data']?.toString() ?? '',
+              'order_id': (order['id'] is String) ? int.parse(order['id']) : order['id'] as int,
+              'item_count': (order['item_count'] is String) ? int.parse(order['item_count']) : order['item_count'] as int,
+              'type': 'active'
+            });
+          }
+
+          // Process past receipts
+          final List<Map<String, dynamic>> pastReceipts = [];
+          final pastReceiptsData = (responseData['past_receipts'] as List).cast<Map<String, dynamic>>();
+          for (var receipt in pastReceiptsData) {
+            pastReceipts.add({
+              'id': 'REC-${receipt['id'].toString().padLeft(6, '0')}',
+              'date': DateTime.parse(receipt['created_at'].toString()),
+              'items': [],
+              'total': (receipt['total'] is String) ? double.parse(receipt['total']) : (receipt['total'] as num).toDouble(),
+              'status': _capitalizeFirstLetter(receipt['status'].toString()),
+              'canteen': 'TUK Canteen',
+              'receiptCode': receipt['receipt_code'].toString(),
+              'qrData': receipt['qr_data']?.toString() ?? '',
+              'order_id': (receipt['id'] is String) ? int.parse(receipt['id']) : receipt['id'] as int,
+              'item_count': (receipt['item_count'] is String) ? int.parse(receipt['item_count']) : receipt['item_count'] as int,
+              'type': 'completed'
+            });
+          }
+
+          setState(() {
+            _activeOrders = activeOrders;
+            _pastReceipts = pastReceipts;
+            _isLoading = false;
+          });
+        } else {
+          throw Exception(data['message']?.toString() ?? 'Failed to load orders');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
   }
 
-  void _calculateSpendingStats() {
-    // Calculate average daily spend (last 7 days)
-    double weeklyTotal = 0;
-    double monthlyTotal = 0;
-    int days = 0;
-    DateTime now = DateTime.now();
-
-    for (var receipt in _pastReceipts) {
-      if (now.difference(receipt["date"]).inDays <= 7) {
-        weeklyTotal += receipt["total"];
-        days++;
+  Future<Map<String, dynamic>> _loadOrderDetails(int orderId) async {
+    try {
+      final token = await SharedPrefsService.getToken();
+      if (token == null) {
+        throw Exception('Please login to view order details');
       }
 
-      if (now.difference(receipt["date"]).inDays <= 30) {
-        monthlyTotal += receipt["total"];
+      final response = await http.get(
+        Uri.parse('https://tuk.onenetwork-system.com/mobileapp/v1/foodbox.php')
+          .replace(queryParameters: {
+            'mobile_number': token,
+            'action': 'get_order_details',
+            'order_id': orderId.toString()
+          }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        if (data['status'] == 'success') {
+          return data['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(data['message']?.toString() ?? 'Failed to load order details');
+        }
+      } else {
+        throw Exception('Server error: ${response.statusCode}');
       }
+    } catch (e) {
+      throw Exception('Failed to load order details: $e');
     }
+  }
 
-    _totalSpendThisWeek = weeklyTotal;
-    _totalSpendThisMonth = monthlyTotal;
-    _averageDailySpend = days > 0 ? weeklyTotal / days : 0;
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+  }
+
+  Future<void> _refreshData() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    await _loadData();
+    setState(() {
+      _isRefreshing = false;
+    });
   }
 
   @override
@@ -163,7 +167,7 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: Text(
+        title: const Text(
           "Food Box",
           style: TextStyle(
             color: Colors.black87,
@@ -171,244 +175,151 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
             fontSize: 22,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.refresh,
+              color: _isRefreshing ? primaryGreen : Colors.black87,
+            ),
+            onPressed: _isRefreshing ? null : _refreshData,
+          ),
+        ],
       ),
       backgroundColor: backgroundColor,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Spending summary card
-            _buildSpendingSummary(),
-
-            // Tab selector
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedTab = 0),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 0 ? primaryGreen : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              "Active Orders",
-                              style: TextStyle(
-                                color: _selectedTab == 0 ? Colors.white : Colors.black87,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF0F7B0F)),
+            )
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.grey,
                       ),
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedTab = 1),
-                        child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 1 ? primaryGreen : Colors.transparent,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: Text(
-                              "Past Receipts",
-                              style: TextStyle(
-                                color: _selectedTab == 1 ? Colors.white : Colors.black87,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Orders/Receipts list based on selected tab
-            _selectedTab == 0
-                ? _buildActiveOrdersList()
-                : _buildPastReceiptsList(),
-
-            // Add some bottom padding
-            SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpendingSummary() {
-    return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Spending Summary",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(height: 16),
-
-          // Spending stats in a grid
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  "Daily Average",
-                  "KES ${_averageDailySpend.toStringAsFixed(0)}",
-                  Icons.today,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  "This Week",
-                  "KES ${_totalSpendThisWeek.toStringAsFixed(0)}",
-                  Icons.calendar_view_week,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          _buildStatCard(
-            "This Month",
-            "KES ${_totalSpendThisMonth.toStringAsFixed(0)}",
-            Icons.calendar_month,
-            fullWidth: true,
-          ),
-
-          SizedBox(height: 16),
-          Divider(),
-          SizedBox(height: 8),
-
-          // Recent spending list
-          Text(
-            "Recent Spending",
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(height: 12),
-
-          // Show last 3 receipts in summary
-          Column(
-            children: _pastReceipts.take(3).map((receipt) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        DateFormat('EEE, MMM d').format(receipt["date"]),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Error loading orders',
                         style: TextStyle(
-                          color: Colors.grey[600],
+                          fontSize: 18,
+                          color: Colors.grey,
                         ),
                       ),
-                    ),
-                    Text(
-                      "KES ${receipt["total"]}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: primaryGreen,
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.grey),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadData,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _refreshData,
+                  color: primaryGreen,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      children: [
+                        // Tab selector only (Spending Summary removed)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => setState(() => _selectedTab = 0),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: _selectedTab == 0 ? primaryGreen : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          "Active Orders",
+                                          style: TextStyle(
+                                            color: _selectedTab == 0 ? Colors.white : Colors.black87,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () => setState(() => _selectedTab = 1),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: _selectedTab == 1 ? primaryGreen : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          "Past Receipts",
+                                          style: TextStyle(
+                                            color: _selectedTab == 1 ? Colors.white : Colors.black87,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
 
-  Widget _buildStatCard(String title, String value, IconData icon, {bool fullWidth = false}) {
-    return Container(
-      width: fullWidth ? double.infinity : null,
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: primaryGreen),
-          SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                        // Orders/Receipts list based on selected tab
+                        _selectedTab == 0
+                            ? _buildActiveOrdersList()
+                            : _buildPastReceiptsList(),
+
+                        // Add some bottom padding
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildActiveOrdersList() {
     if (_activeOrders.isEmpty) {
       return Container(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            Icon(Icons.receipt_long, size: 64, color: Colors.grey[300]),
-            SizedBox(height: 16),
-            Text(
+            const Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
               "No active orders",
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               "Your upcoming orders will appear here",
               style: TextStyle(
                 color: Colors.grey,
@@ -429,20 +340,20 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
   Widget _buildPastReceiptsList() {
     if (_pastReceipts.isEmpty) {
       return Container(
-        padding: EdgeInsets.symmetric(vertical: 40),
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            Icon(Icons.receipt, size: 64, color: Colors.grey[300]),
-            SizedBox(height: 16),
-            Text(
+            const Icon(Icons.receipt, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
               "No past receipts",
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
+            const SizedBox(height: 8),
+            const Text(
               "Your purchase history will appear here",
               style: TextStyle(
                 color: Colors.grey,
@@ -465,8 +376,8 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
       onTap: () => _showOrderDetails(order, isActive),
       onLongPress: () => _showReceiptCodeInfo(order),
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: EdgeInsets.all(16),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -474,7 +385,7 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -485,22 +396,22 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  order["id"],
-                  style: TextStyle(
+                  order["id"].toString(),
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: isActive ? primaryGreen.withOpacity(0.1) : Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    order["status"],
+                    order["status"].toString(),
                     style: TextStyle(
-                      color: isActive ? primaryGreen : Colors.grey[600],
+                      color: isActive ? primaryGreen : Colors.grey,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -508,57 +419,57 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text(
-              DateFormat('EEE, MMM d • h:mm a').format(order["date"]),
-              style: TextStyle(
-                color: Colors.grey[600],
+              DateFormat('EEE, MMM d • h:mm a').format(order["date"] as DateTime),
+              style: const TextStyle(
+                color: Colors.grey,
                 fontSize: 14,
               ),
             ),
-            SizedBox(height: 12),
-            Text(
-              order["canteen"],
+            const SizedBox(height: 12),
+            const Text(
+              "TUK Canteen",
               style: TextStyle(
                 color: Colors.black87,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            SizedBox(height: 12),
-            Divider(height: 1),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "${order["items"].length} item${order["items"].length > 1 ? 's' : ''}",
-                  style: TextStyle(
-                    color: Colors.grey[600],
+                  "${order["item_count"]} item${(order["item_count"] as int) > 1 ? 's' : ''}",
+                  style: const TextStyle(
+                    color: Colors.grey,
                   ),
                 ),
                 Text(
-                  "KES ${order["total"]}",
-                  style: TextStyle(
+                  "KES ${(order["total"] as num).toStringAsFixed(0)}",
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: primaryGreen,
+                    color: Color(0xFF0F7B0F),
                     fontSize: 16,
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             if (isActive) ...[
-              Divider(height: 1),
-              SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.qr_code, size: 16, color: primaryGreen),
-                  SizedBox(width: 8),
+                  const Icon(Icons.qr_code, size: 16, color: Color(0xFF0F7B0F)),
+                  const SizedBox(width: 8),
                   Text(
                     "Receipt Code: ${order["receiptCode"]}",
-                    style: TextStyle(
-                      color: primaryGreen,
+                    style: const TextStyle(
+                      color: Color(0xFF0F7B0F),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -571,194 +482,212 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
     );
   }
 
-  void _showOrderDetails(Map<String, dynamic> order, bool isActive) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
+  Future<void> _showOrderDetails(Map<String, dynamic> order, bool isActive) async {
+    try {
+      final orderDetails = await _loadOrderDetails(order['order_id'] as int);
+      final items = (orderDetails['items'] as List).cast<Map<String, dynamic>>();
+      
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
             ),
-          ),
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    order["id"],
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isActive ? primaryGreen.withOpacity(0.1) : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      order["status"],
-                      style: TextStyle(
-                        color: isActive ? primaryGreen : Colors.grey[600],
-                        fontWeight: FontWeight.w500,
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      order["id"].toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isActive ? primaryGreen.withOpacity(0.1) : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        order["status"].toString(),
+                        style: TextStyle(
+                          color: isActive ? primaryGreen : Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  DateFormat('EEE, MMM d, yyyy • h:mm a').format(order["date"] as DateTime),
+                  style: const TextStyle(
+                    color: Colors.grey,
                   ),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text(
-                DateFormat('EEE, MMM d, yyyy • h:mm a').format(order["date"]),
-                style: TextStyle(
-                  color: Colors.grey[600],
                 ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                order["canteen"],
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
+                const SizedBox(height: 16),
+                const Text(
+                  "TUK Canteen",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              SizedBox(height: 16),
-              Divider(),
-              SizedBox(height: 8),
-              Text(
-                "ORDER ITEMS",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                  fontSize: 12,
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  "ORDER ITEMS",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              SizedBox(height: 12),
-              Column(
-                children: order["items"].map<Widget>((item) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                const SizedBox(height: 12),
+                Column(
+                  children: items.map<Widget>((item) {
+                    final price = (item['price'] is String) ? double.parse(item['price']) : (item['price'] as num).toDouble();
+                    final quantity = (item['quantity'] is String) ? int.parse(item['quantity']) : item['quantity'] as int;
+                    final total = price * quantity;
+                    
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "${item['quantity']}x ${item['name']}",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            "KES ${total.toStringAsFixed(0)}",
+                            style: const TextStyle(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Total",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      "KES ${order["total"]}",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF0F7B0F),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                if (isActive) ...[
+                  Center(
+                    child: Column(
                       children: [
-                        Text(
-                          "${item["quantity"]}x ${item["name"]}",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.qr_code, size: 64, color: Color(0xFF0F7B0F)),
+                              const SizedBox(height: 12),
+                              const Text(
+                                "Receipt Code",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                order["receiptCode"].toString(),
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2,
+                                  color: Color(0xFF0F7B0F),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "Show this code at the canteen",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          "KES ${item["price"] * item["quantity"]}",
+                        const SizedBox(height: 16),
+                        const Text(
+                          "Long press on receipt for more options",
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: Colors.grey,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
-                  );
-                }).toList(),
-              ),
-              Divider(),
-              SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Total",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
                   ),
-                  Text(
-                    "KES ${order["total"]}",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: primaryGreen,
-                    ),
-                  ),
+                  const SizedBox(height: 24),
                 ],
-              ),
-              SizedBox(height: 24),
-              if (isActive) ...[
-                Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[200]!),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.qr_code, size: 64, color: primaryGreen),
-                            SizedBox(height: 12),
-                            Text(
-                              "Receipt Code",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              order["receiptCode"],
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2,
-                                color: primaryGreen,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              "Show this code at the canteen",
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        "Long press on receipt for more options",
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 24),
               ],
-            ],
-          ),
-        );
-      },
-    );
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load order details: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showReceiptCodeInfo(Map<String, dynamic> order) {
@@ -766,7 +695,7 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Receipt Code Info"),
+          title: const Text("Receipt Code Info"),
           content: Text(
             "Your receipt code ${order["receiptCode"]} has been sent to your phone via SMS and WhatsApp. "
             "You can present this code at the canteen to collect your order.",
@@ -774,7 +703,10 @@ class _FoodBoxTabState extends State<FoodBoxTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("OK", style: TextStyle(color: primaryGreen)),
+              child: const Text(
+                "OK",
+                style: TextStyle(color: Color(0xFF0F7B0F)),
+              ),
             ),
           ],
         );

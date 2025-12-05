@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:tuk_meal/screens/onboarding/OnboardingPage.dart';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 
 class SettingsPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -18,10 +20,33 @@ class _SettingsPageState extends State<SettingsPage> {
   String _selectedLanguage = 'English';
   String _selectedCurrency = 'KES';
   String _selectedTheme = 'System default';
+  
+  String? _firstName;
+  String? _lastName;
+  String? _userMobile;
 
   final List<String> _languages = ['English', 'Kiswahili', 'French', 'Spanish'];
   final List<String> _currencies = ['KES', 'USD', 'EUR', 'GBP'];
   final List<String> _themes = ['System default', 'Light', 'Dark'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userData = await SharedPrefsService.getUserData();
+    if (userData != null) {
+      setState(() {
+        _firstName = userData['first_name']?.toString() ?? 'User 1';
+        _lastName = userData['last_name']?.toString() ?? '';
+        _userMobile = userData['mobile']?.toString() ?? 
+                     userData['mobile_number']?.toString() ?? 
+                     'No mobile';
+      });
+    }
+  }
 
   // Show custom beta message modal
   void _showBetaMessage(String featureName) {
@@ -33,7 +58,7 @@ class _SettingsPageState extends State<SettingsPage> {
           backgroundColor: Colors.transparent,
           child: Container(
             width: MediaQuery.of(context).size.width * 0.8,
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
@@ -41,7 +66,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 BoxShadow(
                   color: Colors.black.withOpacity(0.2),
                   blurRadius: 20,
-                  offset: Offset(0, 10),
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
@@ -62,18 +87,18 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: primaryGreen,
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 
                 // Title
                 Text(
                   'Beta Feature',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 
                 // Message
                 Text(
@@ -85,7 +110,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     height: 1.4,
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 
                 // Action button
                 SizedBox(
@@ -95,12 +120,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Got It',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
@@ -117,15 +142,94 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // Show logout confirmation dialog
+  void _showLogoutConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Log Out',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Are you sure you want to log out of your account?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context); // Close dialog
+                await _performLogout();
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Log Out'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Perform logout
+  Future<void> _performLogout() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Clear all user data from SharedPreferences
+      await SharedPrefsService.clearAllData();
+      
+      // Close the loading dialog
+      Navigator.pop(context);
+      
+      // Navigate to OnboardingPage and remove all previous routes
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingPage()),
+        (route) => false,
+      );
+      
+    } catch (e) {
+      // Close the loading dialog if it's still open
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Logout failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fullName = '${_firstName ?? ''} ${_lastName ?? ''}'.trim();
+    
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false, // This removes the back button
-        title: Text(
+        automaticallyImplyLeading: false,
+        title: const Text(
           "Settings",
           style: TextStyle(
             color: Colors.black87,
@@ -135,10 +239,79 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       body: ListView(
-        padding: EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.only(bottom: 24),
         children: [
-          // User profile section
-          _buildProfileSection(),
+          // User profile section (simplified - no DP, no edit button)
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name icon and text
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: primaryGreen.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.person_outline,
+                        color: primaryGreen,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (fullName.isNotEmpty)
+                            Text(
+                              fullName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          if (fullName.isEmpty)
+                            const Text(
+                              'User',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _userMobile ?? 'No mobile number',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           
           // Preferences section
           _buildSectionHeader('Preferences'),
@@ -164,81 +337,17 @@ class _SettingsPageState extends State<SettingsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: ElevatedButton(
-              onPressed: () => _showBetaMessage('Logout'),
+              onPressed: _showLogoutConfirmation,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Text('Log Out'),
+              child: const Text('Log Out'),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildProfileSection() {
-    return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: primaryGreen.withOpacity(0.2),
-            child: Icon(
-              Icons.person,
-              size: 32,
-              color: primaryGreen,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.userData['name'] ?? 'User Name',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  widget.userData['email'] ?? 'user@example.com',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  widget.userData['phone'] ?? '+254 712 345 678',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _showBetaMessage('Profile Editing'),
-            icon: Icon(Icons.edit, color: primaryGreen),
           ),
         ],
       ),
@@ -250,10 +359,10 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
-          color: Colors.grey[700],
+          color: Colors.grey,
         ),
       ),
     );
@@ -261,7 +370,7 @@ class _SettingsPageState extends State<SettingsPage> {
   
   Widget _buildPreferenceCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -269,7 +378,7 @@ class _SettingsPageState extends State<SettingsPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -278,10 +387,10 @@ class _SettingsPageState extends State<SettingsPage> {
           // Language preference
           ListTile(
             leading: Icon(Icons.language, color: primaryGreen),
-            title: Text('Language'),
+            title: const Text('Language'),
             trailing: DropdownButton<String>(
               value: _selectedLanguage,
-              underline: SizedBox(),
+              underline: const SizedBox(),
               onChanged: null, // Disabled in beta
               items: _languages.map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
@@ -292,15 +401,15 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             onTap: () => _showBetaMessage('Language Settings'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Currency preference
           ListTile(
             leading: Icon(Icons.currency_exchange, color: primaryGreen),
-            title: Text('Currency'),
+            title: const Text('Currency'),
             trailing: DropdownButton<String>(
               value: _selectedCurrency,
-              underline: SizedBox(),
+              underline: const SizedBox(),
               onChanged: null, // Disabled in beta
               items: _currencies.map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
@@ -311,15 +420,15 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             onTap: () => _showBetaMessage('Currency Settings'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Theme preference
           ListTile(
             leading: Icon(Icons.color_lens, color: primaryGreen),
-            title: Text('Theme'),
+            title: const Text('Theme'),
             trailing: DropdownButton<String>(
               value: _selectedTheme,
-              underline: SizedBox(),
+              underline: const SizedBox(),
               onChanged: null, // Disabled in beta
               items: _themes.map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
@@ -337,7 +446,7 @@ class _SettingsPageState extends State<SettingsPage> {
   
   Widget _buildNotificationCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -345,7 +454,7 @@ class _SettingsPageState extends State<SettingsPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -354,43 +463,43 @@ class _SettingsPageState extends State<SettingsPage> {
           // Notifications toggle
           ListTile(
             leading: Icon(Icons.notifications, color: primaryGreen),
-            title: Text('Enable Notifications'),
+            title: const Text('Enable Notifications'),
             trailing: Switch(
               value: _notificationsEnabled,
               onChanged: null, // Disabled in beta
             ),
             onTap: () => _showBetaMessage('Notification Settings'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Order updates
           ListTile(
             leading: Icon(Icons.fastfood, color: primaryGreen),
-            title: Text('Order Updates'),
+            title: const Text('Order Updates'),
             trailing: Switch(
               value: true,
               onChanged: null, // Disabled in beta
             ),
             onTap: () => _showBetaMessage('Order Update Settings'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Promotional notifications
           ListTile(
             leading: Icon(Icons.local_offer, color: primaryGreen),
-            title: Text('Promotions & Offers'),
+            title: const Text('Promotions & Offers'),
             trailing: Switch(
               value: true,
               onChanged: null, // Disabled in beta
             ),
             onTap: () => _showBetaMessage('Promotion Settings'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Payment notifications
           ListTile(
             leading: Icon(Icons.payment, color: primaryGreen),
-            title: Text('Payment Notifications'),
+            title: const Text('Payment Notifications'),
             trailing: Switch(
               value: true,
               onChanged: null, // Disabled in beta
@@ -404,7 +513,7 @@ class _SettingsPageState extends State<SettingsPage> {
   
   Widget _buildSecurityCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -412,7 +521,7 @@ class _SettingsPageState extends State<SettingsPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -421,32 +530,32 @@ class _SettingsPageState extends State<SettingsPage> {
           // Biometric authentication
           ListTile(
             leading: Icon(Icons.fingerprint, color: primaryGreen),
-            title: Text('Biometric Login'),
+            title: const Text('Biometric Login'),
             trailing: Switch(
               value: _biometricEnabled,
               onChanged: null, // Disabled in beta
             ),
             onTap: () => _showBetaMessage('Biometric Login'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Auto login
           ListTile(
             leading: Icon(Icons.login, color: primaryGreen),
-            title: Text('Auto Login'),
+            title: const Text('Auto Login'),
             trailing: Switch(
               value: _autoLoginEnabled,
               onChanged: null, // Disabled in beta
             ),
             onTap: () => _showBetaMessage('Auto Login'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Change password
           ListTile(
             leading: Icon(Icons.lock, color: primaryGreen),
-            title: Text('Change Password'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Change Password'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Password Change'),
           ),
         ],
@@ -456,7 +565,7 @@ class _SettingsPageState extends State<SettingsPage> {
   
   Widget _buildAppSettingsCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -464,7 +573,7 @@ class _SettingsPageState extends State<SettingsPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -473,43 +582,43 @@ class _SettingsPageState extends State<SettingsPage> {
           // App version
           ListTile(
             leading: Icon(Icons.info, color: primaryGreen),
-            title: Text('App Version'),
-            trailing: Text('1.0.0 (Beta)'),
+            title: const Text('App Version'),
+            trailing: const Text('1.0.0 (Beta)'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Clear cache
           ListTile(
             leading: Icon(Icons.cached, color: primaryGreen),
-            title: Text('Clear Cache'),
-            trailing: Text('12.5 MB'),
+            title: const Text('Clear Cache'),
+            trailing: const Text('12.5 MB'),
             onTap: () => _showBetaMessage('Cache Clearing'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Data usage
           ListTile(
             leading: Icon(Icons.data_usage, color: primaryGreen),
-            title: Text('Data Usage'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Data Usage'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Data Usage Statistics'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Terms of service
           ListTile(
             leading: Icon(Icons.description, color: primaryGreen),
-            title: Text('Terms of Service'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Terms of Service'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Terms of Service'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Privacy policy
           ListTile(
             leading: Icon(Icons.privacy_tip, color: primaryGreen),
-            title: Text('Privacy Policy'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Privacy Policy'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Privacy Policy'),
           ),
         ],
@@ -519,7 +628,7 @@ class _SettingsPageState extends State<SettingsPage> {
   
   Widget _buildSupportCard() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -527,7 +636,7 @@ class _SettingsPageState extends State<SettingsPage> {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -536,35 +645,35 @@ class _SettingsPageState extends State<SettingsPage> {
           // Help center
           ListTile(
             leading: Icon(Icons.help, color: primaryGreen),
-            title: Text('Help Center'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Help Center'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Help Center'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Contact support
           ListTile(
             leading: Icon(Icons.support_agent, color: primaryGreen),
-            title: Text('Contact Support'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Contact Support'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Contact Support'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Report a problem
           ListTile(
             leading: Icon(Icons.report_problem, color: primaryGreen),
-            title: Text('Report a Problem'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Report a Problem'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('Problem Reporting'),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           
           // Rate the app
           ListTile(
             leading: Icon(Icons.star, color: primaryGreen),
-            title: Text('Rate the App'),
-            trailing: Icon(Icons.chevron_right),
+            title: const Text('Rate the App'),
+            trailing: const Icon(Icons.chevron_right),
             onTap: () => _showBetaMessage('App Rating'),
           ),
         ],
