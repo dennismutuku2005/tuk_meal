@@ -1,1 +1,9 @@
 flutter/ephemeral
+
+# Flutter/Dart/Pub related
+.dart_tool/
+.packages
+
+# IntelliJ related
+.idea/  
+*.iml
