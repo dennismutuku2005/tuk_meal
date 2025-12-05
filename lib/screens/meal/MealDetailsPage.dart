@@ -27,6 +27,7 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
   
   int _quantity = 1;
   bool _isAddingToCart = false;
+  bool _shouldNavigateBack = false;
 
   @override
   void initState() {
@@ -133,6 +134,7 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
           // Success animation and feedback
           _triggerAnimation();
           
+          // Show success snackbar
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
@@ -145,14 +147,14 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
               backgroundColor: primaryGreen,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              duration: const Duration(seconds: 2),
+              duration: const Duration(milliseconds: 1200), // Reduced duration
             ),
           );
 
-          // Close page after successful addition
-          Future.delayed(const Duration(milliseconds: 1500), () {
+          // Use a completer or state flag to handle navigation
+          Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted) {
-              Navigator.pop(context);
+              Navigator.pop(context, true); // Return success flag
             }
           });
         } else {
@@ -183,7 +185,7 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
         ),
       );
     } finally {
-      if (mounted) {
+      if (mounted && !_shouldNavigateBack) {
         setState(() {
           _isAddingToCart = false;
         });
@@ -193,20 +195,34 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: CustomScrollView(
-          slivers: [
-            _buildAppBar(),
-            _buildMealImage(),
-            _buildMealDetails(),
-            _buildQuantitySelector(),
-            _buildNutritionInfo(),
-            _buildAddToCartSection(),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+    return PopScope(
+      canPop: !_isAddingToCart,
+      onPopInvoked: (didPop) {
+        if (_isAddingToCart) {
+          // Prevent pop if adding to cart
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait while adding to cart...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        body: FadeTransition(
+          opacity: _fadeAnimation,
+          child: CustomScrollView(
+            slivers: [
+              _buildAppBar(),
+              _buildMealImage(),
+              _buildMealDetails(),
+              _buildQuantitySelector(),
+              _buildNutritionInfo(),
+              _buildAddToCartSection(),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            ],
+          ),
         ),
       ),
     );
@@ -218,8 +234,13 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
       elevation: 0,
       pinned: true,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.black87),
-        onPressed: () => Navigator.pop(context),
+        icon: Icon(
+          Icons.arrow_back,
+          color: _isAddingToCart ? Colors.grey : Colors.black87,
+        ),
+        onPressed: _isAddingToCart
+            ? null
+            : () => Navigator.pop(context),
       ),
       title: Text(
         widget.meal['name'] ?? 'Meal Details',
@@ -231,8 +252,11 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.favorite_border, color: Colors.black87),
-          onPressed: () {},
+          icon: Icon(
+            Icons.favorite_border,
+            color: _isAddingToCart ? Colors.grey : Colors.black87,
+          ),
+          onPressed: _isAddingToCart ? null : () {},
         ),
       ],
     );
@@ -264,6 +288,7 @@ class _MealDetailPageState extends State<MealDetailPage> with SingleTickerProvid
         scaleAnimation: _scaleAnimation,
         onAnimationTrigger: _triggerAnimation,
         onQuantityChanged: _onQuantityChanged,
+        isEnabled: !_isAddingToCart,
       ),
     );
   }

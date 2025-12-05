@@ -11,7 +11,7 @@ class QuantitySelectorWidget extends StatefulWidget {
     required this.primaryColor,
     required this.scaleAnimation,
     required this.onAnimationTrigger,
-    required this.onQuantityChanged,
+    required this.onQuantityChanged, required bool isEnabled,
   });
 
   @override
