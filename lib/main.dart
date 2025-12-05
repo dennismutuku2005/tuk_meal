@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tuk_meal/services/shared_prefs_service.dart';
 import 'package:tuk_meal/screens/onboarding/OnboardingPage.dart';
 import 'package:tuk_meal/screens/main/MainScreen.dart';
 
@@ -36,13 +36,36 @@ class AuthRedirect extends StatelessWidget {
   const AuthRedirect({super.key});
 
   Future<Widget> _getHomePage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('auth_token');
-    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    final isLoggedIn = await SharedPrefsService.isLoggedIn();
+    final token = await SharedPrefsService.getToken();
+    final userData = await SharedPrefsService.getUserData();
     
-    // If user is logged in and has token, go to MainPage
-    if (isLoggedIn && token != null) {
-      return MainPage(token: token);
+    debugPrint('Auth check - isLoggedIn: $isLoggedIn');
+    debugPrint('Auth check - token: $token');
+    debugPrint('Auth check - userData: $userData');
+    
+    // Check all conditions based on SharedPrefsService logic
+    if (isLoggedIn && token != null && token.isNotEmpty && userData != null) {
+      // Check if userData has at least mobile number or essential fields
+      final hasMobileNumber = userData['mobile'] != null;
+      final hasEssentialFields = userData.containsKey('id') || 
+                                 userData.containsKey('user_id');
+      
+      if (hasMobileNumber || hasEssentialFields) {
+        debugPrint('User authenticated successfully with mobile: ${userData['mobile']}');
+        return MainPage(token: token);
+      } else {
+        debugPrint('User data missing essential fields: ${userData.keys.toList()}');
+        // Clear invalid data
+        await SharedPrefsService.clearAllData();
+      }
+    } else {
+      debugPrint('Authentication failed - missing one of: isLoggedIn=$isLoggedIn, token=$token, userData=$userData');
+      
+      // If partially logged in but missing data, clear everything
+      if (isLoggedIn && (token == null || userData == null)) {
+        await SharedPrefsService.clearAllData();
+      }
     }
     
     // Otherwise, show onboarding
