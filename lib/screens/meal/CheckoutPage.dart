@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class CheckoutPage extends StatefulWidget {
-  const CheckoutPage({super.key});
+  const CheckoutPage({super.key, required List<Map<String, dynamic>> cartItems, required double totalPrice});
 
   @override
   State<CheckoutPage> createState() => _CheckoutPageState();
