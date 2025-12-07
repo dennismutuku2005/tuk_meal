@@ -55,19 +55,6 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
-  // Save token to SharedPreferences
-  Future<void> _saveTokenToSharedPreferences(String token) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', token);
-      await prefs.setBool('is_logged_in', true);
-      print('✅ Token saved to SharedPreferences');
-    } catch (e) {
-      print('❌ Error saving token to SharedPreferences: $e');
-      throw Exception('Failed to save authentication data');
-    }
-  }
-
   void _register() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
