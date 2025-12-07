@@ -69,75 +69,92 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _register() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+  if (_formKey.currentState!.validate()) {
+    setState(() => _isLoading = true);
 
-      try {
-        final baseUrl = dotenv.env['API_BASE_URL'] ?? "";
-        final url = Uri.parse("$baseUrl/register.php");
+    try {
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? "";
+      final url = Uri.parse("$baseUrl/register.php");
 
-        final response = await http.post(
-          url,
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode({
-            "first_name": _firstNameController.text.trim(),
-            "last_name": _secondNameController.text.trim(),
-            "mobile_number": _mobileController.text.trim(),
-            "password": _passwordController.text.trim(),
-          }),
-        );
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "first_name": _firstNameController.text.trim(),
+          "last_name": _secondNameController.text.trim(),
+          "mobile_number": _mobileController.text.trim(),
+          "password": _passwordController.text.trim(),
+        }),
+      ).timeout(const Duration(seconds: 30));
 
-        setState(() => _isLoading = false);
+      final data = jsonDecode(response.body);
+      
+      debugPrint('Register response: $data');
 
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        if (data["status"] == true) {
+          // ✅ Save complete user data like in login page
+          await _saveUserData(data);
+          
+          // ✅ Navigate to MainPage
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const MainPage(token: '')),
+            (route) => false,
+          );
 
-          if (data["status"] == true) {
-            final token = data["token"];
-
-            // ✅ Save token to SharedPreferences
-            await _saveTokenToSharedPreferences(token);
-
-            // ✅ Navigate to MainPage with token
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => MainPage(token: token)),
-            );
-
-            // Show success message
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text("Registration successful!"),
-                backgroundColor: primaryGreen,
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data["message"] ?? "Registration failed"),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data["message"] ?? "Registration successful!"),
+              backgroundColor: primaryGreen,
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Server error, try again later."),
+            SnackBar(
+              content: Text(data["message"] ?? "Registration failed"),
               backgroundColor: Colors.red,
             ),
           );
         }
-      } catch (e) {
-        setState(() => _isLoading = false);
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: $e"), 
-            backgroundColor: Colors.red
+          const SnackBar(
+            content: Text("Server error, try again later."),
+            backgroundColor: Colors.red,
           ),
         );
       }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
+}
+
+// Add this method to save user data (same as in login page)
+Future<void> _saveUserData(Map<String, dynamic> data) async {
+  final prefs = await SharedPreferences.getInstance();
+  
+  // Save user data if it exists in the response
+  if (data['user'] != null) {
+    await prefs.setString('user_data', jsonEncode(data['user']));
+  }
+  
+  // Save token
+  await prefs.setString('auth_token', data['token'] ?? '');
+  await prefs.setBool('is_logged_in', true);
+  
+  debugPrint('✅ User data saved to SharedPreferences');
+}
 
   InputDecoration _inputDecoration(String hint, IconData icon) {
     return InputDecoration(
