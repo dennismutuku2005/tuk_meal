@@ -78,6 +78,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
+        print('Checkout Response: $data');
         
         if (data['status'] == 'success') {
           // Show success dialog with receipt
