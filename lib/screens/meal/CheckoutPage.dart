@@ -74,7 +74,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'phone': _phoneController.text,
           'payment_method': 'M-Pesa',
         }),
-      ).timeout(const Duration(seconds: 30));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
