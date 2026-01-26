@@ -145,4 +145,4 @@ SOFTWARE.
 
 ---
 
-**Made with love for the Dennis Muuo and Martina Peres**
+**Made with love for the Dennis Muuo and Martina Peres **
